@@ -1,7 +1,23 @@
-export default function Home() {
+import { HydrateClient, trpc } from '@/trpc/server';
+import { HomeView } from '@/modules/home/ui/views/home-view';
+
+export const dynamic = 'force-dynamic';
+
+interface PageProps {
+  searchParams: Promise<{
+    categoryId?: string;
+  }>;
+}
+const Page = async ({ searchParams }: PageProps) => {
+  const { categoryId } = await searchParams;
+
+  void trpc.categories.getMany.prefetch();
+
   return (
-    <main>
-      I will load vieos in the future!
-    </main>
+    <HydrateClient>
+      <HomeView categoryId={categoryId}/>
+    </HydrateClient>
   )
 }
+
+export default Page;
