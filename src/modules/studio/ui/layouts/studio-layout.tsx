@@ -13,7 +13,7 @@ export const StudioLayout = ({ children }: StudioLayoutProps) => {
                 <StudioNavbar />
                 <div className="flex min-h-screen pt-[4rem]">
                     <StudioSidebar />
-                    <main>
+                    <main className="w-full">
                         {children}
                     </main>
                 </div>
