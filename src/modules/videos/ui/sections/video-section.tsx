@@ -14,11 +14,13 @@ interface VideoSectionProps {
 
 export const VideoSection = ({ videoId }: VideoSectionProps) => {
     return (
-        <Suspense fallback={<p>Loading.....</p>}>
-            <ErrorBoundary fallback={<p>Error.....</p>}>
-                <VideoSectionSuspense videoId={videoId} />
-            </ErrorBoundary>
-        </Suspense>
+        <div className="w-full">
+            <Suspense fallback={<p>Loading.....</p>}>
+                <ErrorBoundary fallback={<p>Error.....</p>}>
+                    <VideoSectionSuspense videoId={videoId} />
+                </ErrorBoundary>
+            </Suspense>
+        </div>
     )
 }
 
@@ -26,9 +28,9 @@ const VideoSectionSuspense = ({ videoId }: VideoSectionProps) => {
     const [video] = trpc.videos.getOne.useSuspenseQuery({ id: videoId });
 
     return (
-        <>
+        <div className="w-full">
             <div className={cn(
-                "aspect-video bg-black rounded-xl overflow-hidden relative",
+                "aspect-video bg-black rounded-xl overflow-hidden relative w-full",
                 video.muxStatus !== "ready" && "rounded-b-none"
             )}>
                 <VideoPlayer 
@@ -40,6 +42,6 @@ const VideoSectionSuspense = ({ videoId }: VideoSectionProps) => {
             </div>
             <VideoBanner status={video.muxStatus} />
             <VideoTopRow video={video} />
-        </>
+        </div>
     )
 }
