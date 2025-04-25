@@ -1,36 +1,89 @@
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { z } from "zod";
-import { users, videos, videoUpdateSchema, videoViews } from "@/db/schema";
+import { subscriptions, users, videoReactions, videos, videoUpdateSchema, videoViews } from "@/db/schema";
 import { mux } from "@/lib/mux";
-import { and, eq, getTableColumns } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { UTApi } from "uploadthing/server";
 
 export const videosRouter = createTRPCRouter({
 
     getOne: baseProcedure
-        .input(z.object({ id: z.string().uuid() }))
-        .query(async ({ input }) => {
-            const [ existingVideo ] = await db
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ input, ctx }) => {
+        const { clerkUserId } = ctx;
+        let userId;
+
+        const [user] = await db
+            .select()
+            .from(users)
+            .where(inArray(users.clerkId, clerkUserId ? [clerkUserId] : []));
+
+        if (user) {
+            userId = user.id;
+        }
+
+        const viewerReactions = db.$with("viewer_reactions").as(
+            db
                 .select({
-                    ...getTableColumns(videos),
-                    user: {
-                        ...getTableColumns(users),
-                    },
-                    viewCount: db.$count(videoViews, eq(videoViews.videoId, videos.id))
+                    videoId: videoReactions.videoId,
+                    type: videoReactions.type,
                 })
-                .from(videos)
-                .innerJoin(users, eq(videos.userId, users.id))
-                .where(eq(videos.id, input.id));
-                
+                .from(videoReactions)
+                .where(inArray(videoReactions.userId, userId ? [userId] : []))
+        );
 
-            if (!existingVideo) {
-                throw new TRPCError({ code: "NOT_FOUND" });
-            }    
+        const viewerSubscriptions = db.$with("viewer_subscriptions").as(
+            db
+                .select()
+                .from(subscriptions)
+                .where(inArray(subscriptions.viewerId, userId ? [userId] : []))
+        );
 
-            return existingVideo;    
-        }),
+        const [existingVideo] = await db
+            .with(viewerReactions, viewerSubscriptions)
+            .select({
+                ...getTableColumns(videos),
+                user: {
+                    ...getTableColumns(users),
+                    subscriberCount: db.$count(subscriptions, eq(subscriptions.createrId, users.id)),
+                    viewerSubscribed: isNotNull(viewerSubscriptions.viewerId).mapWith(Boolean),
+                },
+                viewCount: db.$count(videoViews, eq(videoViews.videoId, videos.id)),
+                likeCount: db.$count(
+                    videoReactions,
+                    and(
+                        eq(videoReactions.videoId, videos.id),
+                        eq(videoReactions.type, "like")
+                    )
+                ),
+                dislikeCount: db.$count(
+                    videoReactions,
+                    and(
+                        eq(videoReactions.videoId, videos.id),
+                        eq(videoReactions.type, "dislike")
+                    )
+                ),
+                viewerReaction: viewerReactions.type,
+            })
+            .from(videos)
+            .innerJoin(users, eq(videos.userId, users.id))
+            .leftJoin(viewerReactions, eq(viewerReactions.videoId, videos.id))
+            .leftJoin(viewerSubscriptions, eq(viewerSubscriptions.createrId, users.id))
+            .where(eq(videos.id, input.id));
+            // .groupBy(
+                //     videos.id,
+                //     users.id,
+                //     videoReactions.type,
+                // );
+
+        if (!existingVideo) {
+            throw new TRPCError({ code: "NOT_FOUND" });
+        }
+
+        return existingVideo;
+    }),
 
     restoreThumbnail: protectedProcedure
         .input(z.object({ id: z.string().uuid() }))
@@ -74,7 +127,7 @@ export const videosRouter = createTRPCRouter({
             const utapi = new UTApi();
             const uploadedThumbnail = await utapi.uploadFilesFromUrl(tempThumbnailUrl);
 
-            if(!uploadedThumbnail.data) {
+            if (!uploadedThumbnail.data) {
                 throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
             }
 
