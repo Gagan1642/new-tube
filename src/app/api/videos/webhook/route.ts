@@ -174,6 +174,7 @@ export async function POST(request: Request) {
     );
 
     switch (payload.type as WebhookEvent["type"]) {
+
       case "video.asset.created": {
         const data = payload.data as VideoAssetCreatedWebhookEvent["data"];
 
@@ -184,11 +185,21 @@ export async function POST(request: Request) {
           return new Response("Error: Missing upload_id", { status: 400 });
         }
 
+        // await db
+        //   .update(videos)
+        //   .set({
+        //     muxAssetId: data.id,
+        //     muxStatus: data.status,
+        //   })
+        //   .where(eq(videos.muxUploadId, data.upload_id));
+        // break;
+
+
         await db
           .update(videos)
           .set({
             muxAssetId: data.id,
-            muxStatus: data.status,
+            muxStatus: data.status.toLowerCase(), // Force lowercase
           })
           .where(eq(videos.muxUploadId, data.upload_id));
         break;
@@ -199,6 +210,7 @@ export async function POST(request: Request) {
         const playbackId = data.playback_ids?.[0].id;
 
         if (!data.upload_id) {
+          console.error("Error: Missing upload_id in webhook payload");
           return new Response("Error: Missing upload_id", { status: 400 });
         }
 
@@ -219,7 +231,7 @@ export async function POST(request: Request) {
           tempPreviewUrl,
         ]);
 
-        if(!uploadedThumbnail.data || !uploadedPreview.data) {
+        if (!uploadedThumbnail.data || !uploadedPreview.data) {
           return new Response("Error: Failed to upload thumbnail or preview", { status: 500 });
         }
 
@@ -239,9 +251,25 @@ export async function POST(request: Request) {
             duration,
           })
           .where(eq(videos.muxUploadId, data.upload_id));
-
         break;
 
+
+
+        // await db
+        //   .update(videos)
+        //   .set({
+        //     muxStatus: data.status.toLowerCase(), // Force lowercase
+        //     muxPlaybackId: playbackId,
+        //     muxAssetId: data.id,
+        //     thumbnailUrl,
+        //     thumbnailKey,
+        //     previewUrl,
+        //     previewKey,
+        //     duration,
+        //   })
+        //   .where(eq(videos.muxUploadId, data.upload_id));
+
+        // break;
       }
 
       case "video.asset.errored": {
@@ -251,10 +279,18 @@ export async function POST(request: Request) {
           return new Response("Error: Missing upload_id", { status: 400 });
         }
 
+        // await db
+        //   .update(videos)
+        //   .set({
+        //     muxStatus: data.status,
+        //   })
+        //   .where(eq(videos.muxUploadId, data.upload_id));
+
+
         await db
           .update(videos)
           .set({
-            muxStatus: data.status,
+            muxStatus: data.status.toLowerCase(), // Force lowercase
           })
           .where(eq(videos.muxUploadId, data.upload_id));
         break;
@@ -278,22 +314,22 @@ export async function POST(request: Request) {
           asset_id: string;
         };
 
-      // TypeScript incorrectly says that asset_id does not exist on data
-      const assetId = data.asset_id;
-      const trackId = data.id;
-      const status = data.status;
+        // TypeScript incorrectly says that asset_id does not exist on data
+        const assetId = data.asset_id;
+        const trackId = data.id;
+        const status = data.status;
 
-      if(!assetId) {
-        return new Response("Error: Missing asset_id", { status: 400 });
-      }
+        if (!assetId) {
+          return new Response("Error: Missing asset_id", { status: 400 });
+        }
 
-      await db
-        .update(videos)
-        .set({
-          muxTrackId: trackId,
-          muxTrackStatus: status,
-        })
-        .where(eq(videos.muxAssetId, assetId));
+        await db
+          .update(videos)
+          .set({
+            muxTrackId: trackId,
+            muxTrackStatus: status,
+          })
+          .where(eq(videos.muxAssetId, assetId));
         break;
       }
     }
@@ -305,4 +341,4 @@ export async function POST(request: Request) {
     return new Response(`Error processing webhook: ${error}`, { status: 500 });
   }
 }
-  
+

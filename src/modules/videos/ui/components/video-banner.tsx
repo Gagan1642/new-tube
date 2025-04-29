@@ -6,7 +6,12 @@ interface VideoBannerProps {
 }
 
 export const VideoBanner = ({ status }: VideoBannerProps) => {
-    if (status === "ready") {
+    // if (status === "ready") {
+    //     return null;
+    // }
+
+    console.log("Video status:", status);
+    if (status?.toLowerCase() === "ready") {
         return null;
     }
 
